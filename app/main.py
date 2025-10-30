@@ -70,7 +70,6 @@ async def rag_ingest_pdf(ctx: inngest.Context):
         payloads = [{"source": source_id, "text": chunks[i]} for i in range(len(chunks))]
         ctx.logger.info(f"Upserting {len(ids)} vectors to Qdrant...")
         
-        # FIXED: Don't wrap async method in run_in_executor - just await it directly
         store = QdrantStorage()
         await store.upsert(ids, vecs, payloads)
         
@@ -129,4 +128,25 @@ async def rag_query_pdf_ai(ctx: inngest.Context):
     return {"answer": answer, "sources": found.sources, "num_contexts": len(found.contexts)}
 
 app = FastAPI()
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    try:
+        store = QdrantStorage()
+        info = store.client.get_collection("docs")
+        
+        return {
+            "status": "healthy",
+            "qdrant": "connected",
+            "points": info.points_count,
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "error": str(e),
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+        
 inngest.fast_api.serve(app, inngest_client, [rag_ingest_pdf, rag_query_pdf_ai])
